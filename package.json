@@ -1,0 +1,38 @@
+{
+  "name": "@brevo/designforge",
+  "version": "0.1.0",
+  "description": "Autonomous AI Agent: Figma → Design System → Production Code",
+  "keywords": [
+    "figma",
+    "design-system",
+    "codegen",
+    "ai-agent",
+    "mcp",
+    "claude"
+  ],
+  "author": "Brevo",
+  "license": "MIT",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "dev": "npm run dev --workspace=packages/cli",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf packages/*/dist packages/*/node_modules node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  }
+}
