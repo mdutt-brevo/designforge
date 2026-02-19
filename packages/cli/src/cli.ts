@@ -5,7 +5,7 @@ import { config } from 'dotenv';
 import chalk from 'chalk';
 import ora from 'ora';
 import inquirer from 'inquirer';
-import { runDesignForge, DesignForgeConfig } from '@brevo/designforge-core';
+import { runDesignForge, DesignForgeConfig, McpServerConfig } from '@brevo/designforge-core';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -113,10 +113,12 @@ program
 
     // Check environment variables
     console.log(chalk.bold('Environment Variables:'));
-    console.log(`  ANTHROPIC_API_KEY: ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '❌ Not set'}`);
-    console.log(`  FIGMA_MCP_PATH: ${process.env.FIGMA_MCP_PATH || '❌ Not set'}`);
-    console.log(`  DESIGN_SYSTEM_MCP_PATH: ${process.env.DESIGN_SYSTEM_MCP_PATH || '❌ Not set'}`);
-    console.log(`  PROJECT_ROOT: ${process.env.PROJECT_ROOT || '❌ Not set'}`);
+    console.log(`  ANTHROPIC_API_KEY:   ${process.env.ANTHROPIC_API_KEY ? '✅ Set' : '❌ Not set'}`);
+    console.log(`  ANTHROPIC_BASE_URL:  ${process.env.ANTHROPIC_BASE_URL || '❌ Not set (will use default)'}`);
+    console.log(`  CLAUDE_MODEL:        ${process.env.CLAUDE_MODEL || '❌ Not set (will use default)'}`);
+    console.log(`  FIGMA_MCP_KEY:       ${process.env.FIGMA_MCP_KEY ? '✅ Set (' + process.env.FIGMA_MCP_KEY.slice(0, 8) + '...)' : '❌ Not set'}`);
+    console.log(`  NAOS_MCP_URL:        ${process.env.NAOS_MCP_URL || 'https://naos-mcp.51b.dev/mcp (default)'}`);
+    console.log(`  PROJECT_ROOT:        ${process.env.PROJECT_ROOT || '❌ Not set'}`);
 
     // Check MCP connectivity if requested
     if (options.checkMcp) {
@@ -128,21 +130,43 @@ program
 program
   .command('validate-config')
   .description('Validate DesignForge configuration')
-  .action(() => {
+  .action(async () => {
     console.log(chalk.blue('✅ Configuration Validation\n'));
 
+    const fileConfig = await loadConfigFile();
     const configPath = path.join(process.cwd(), 'designforge.config.js');
-    if (fs.existsSync(configPath)) {
-      console.log(chalk.green('✅ Configuration file found'));
-      // TODO: Load and validate config
+
+    if (Object.keys(fileConfig).length > 0) {
+      console.log(chalk.green('✅ Configuration file found:'), configPath);
+      console.log(chalk.dim(JSON.stringify(fileConfig, null, 2)));
     } else {
       console.log(chalk.yellow('⚠️  No designforge.config.js found'));
       console.log('   Using default configuration');
     }
   });
 
+/**
+ * Load designforge.config.js from the current directory if it exists.
+ * Returns an empty object if the file is not found or fails to load.
+ */
+async function loadConfigFile(): Promise<Record<string, any>> {
+  const configPath = path.join(process.cwd(), 'designforge.config.js');
+  if (!fs.existsSync(configPath)) return {};
+
+  try {
+    // Dynamic import works for both ESM `export default` and CJS `module.exports`
+    const imported = await import(configPath);
+    return imported.default ?? imported;
+  } catch {
+    return {};
+  }
+}
+
 async function startWorkflow(options: any): Promise<void> {
   const spinner = ora('Initializing DesignForge...').start();
+
+  // Load config file — values are used as defaults; CLI flags take priority
+  const fileConfig = await loadConfigFile();
 
   // Validate API key
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -155,14 +179,42 @@ async function startWorkflow(options: any): Promise<void> {
 
   spinner.succeed('Configuration loaded');
 
-  // Build config
+  // Build MCP server connections from environment.
+  // Figma: stdio transport — spawns figma-developer-mcp as a child process.
+  // Naos:  HTTP transport — connects to the remote Naos MCP endpoint.
+  const mcpServers: McpServerConfig[] = [];
+
+  const figmaKey = process.env.FIGMA_MCP_KEY;
+  if (figmaKey) {
+    mcpServers.push({
+      name: 'figma',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', 'figma-developer-mcp', '--stdio'],
+      env: { FIGMA_API_KEY: figmaKey },
+    });
+  } else {
+    console.log(chalk.yellow('  ⚠ FIGMA_MCP_KEY not set — Figma MCP will use mock data'));
+  }
+
+  const naosUrl = process.env.NAOS_MCP_URL || 'https://naos-mcp.51b.dev/mcp';
+  mcpServers.push({
+    name: 'naos',
+    transport: 'http',
+    url: naosUrl,
+  });
+
+  // Build config — priority: CLI flags > env vars > designforge.config.js > defaults
   const config: DesignForgeConfig = {
     figmaUrl: options.figma,
-    outputPath: path.resolve(options.output),
+    outputPath: path.resolve(options.output || fileConfig.output?.baseDir || './src/components'),
     anthropicApiKey: apiKey,
-    minCoverage: parseInt(options.coverage),
-    maxTurns: parseInt(options.maxTurns),
-    verbose: options.verbose
+    minCoverage: parseInt(options.coverage) || fileConfig.codegen?.minCoverage || 80,
+    maxTurns: parseInt(options.maxTurns) || fileConfig.agent?.maxTurns || 30,
+    verbose: options.verbose,
+    baseURL: process.env.ANTHROPIC_BASE_URL,
+    model: process.env.CLAUDE_MODEL || fileConfig.agent?.model,
+    mcpServers,
   };
 
   if (options.dryRun) {
@@ -179,10 +231,15 @@ async function startWorkflow(options: any): Promise<void> {
   console.log('\n' + chalk.bold.blue('🔨 DesignForge'));
   console.log(chalk.dim('Autonomous Figma to Code Agent\n'));
   console.log(chalk.bold('📋 Configuration:'));
-  console.log(`   Figma URL: ${chalk.cyan(config.figmaUrl)}`);
-  console.log(`   Output: ${chalk.cyan(config.outputPath)}`);
-  console.log(`   Coverage: ${chalk.cyan(config.minCoverage + '%')}`);
-  console.log(`   Max Turns: ${chalk.cyan(config.maxTurns)}`);
+  console.log(`   Figma URL:  ${chalk.cyan(config.figmaUrl)}`);
+  console.log(`   Output:     ${chalk.cyan(config.outputPath)}`);
+  console.log(`   Coverage:   ${chalk.cyan(config.minCoverage + '%')}`);
+  console.log(`   Max Turns:  ${chalk.cyan(config.maxTurns)}`);
+  console.log(chalk.bold('\n🔌 MCP Servers:'));
+  for (const srv of mcpServers) {
+    const transport = srv.transport === 'stdio' ? 'stdio' : 'http';
+    console.log(`   ${chalk.green('●')} ${srv.name} (${transport})`);
+  }
   console.log();
 
   // Run workflow

@@ -18,7 +18,8 @@
   "author": "Brevo",
   "license": "MIT",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.30.0"
+    "@anthropic-ai/sdk": "^0.30.0",
+    "@modelcontextprotocol/sdk": "^1.26.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.11",

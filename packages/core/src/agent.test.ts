@@ -26,8 +26,8 @@ describe('DesignForgeAgent', () => {
     it('should execute workflow and return result', async () => {
       const agent = new DesignForgeAgent(mockConfig);
 
-      // Mock the Anthropic API
-      jest.spyOn(agent as any, 'anthropic.messages.create').mockResolvedValue({
+      // Mock the Anthropic API — spy on the nested object, not a dotted path
+      jest.spyOn((agent as any).anthropic.messages, 'create').mockResolvedValue({
         content: [
           {
             type: 'text',
@@ -47,6 +47,40 @@ describe('DesignForgeAgent', () => {
       const agent = new DesignForgeAgent(mockConfig);
       const progressCallback = jest.fn();
 
+      // Mock multi-turn conversation: figma tool → design-system tool → completion
+      jest.spyOn((agent as any).anthropic.messages, 'create')
+        .mockResolvedValueOnce({
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool-1',
+              name: 'figma',
+              input: { action: 'get_file', file_url: mockConfig.figmaUrl }
+            }
+          ],
+          stop_reason: 'tool_use'
+        })
+        .mockResolvedValueOnce({
+          content: [
+            {
+              type: 'tool_use',
+              id: 'tool-2',
+              name: 'design-system',
+              input: { action: 'list_components' }
+            }
+          ],
+          stop_reason: 'tool_use'
+        })
+        .mockResolvedValueOnce({
+          content: [
+            {
+              type: 'text',
+              text: 'WORKFLOW COMPLETE - All components generated'
+            }
+          ],
+          stop_reason: 'end_turn'
+        });
+
       await agent.run(progressCallback);
 
       expect(progressCallback).toHaveBeenCalled();
@@ -56,6 +90,14 @@ describe('DesignForgeAgent', () => {
 
     it('should throw if max turns exceeded', async () => {
       const agent = new DesignForgeAgent({ ...mockConfig, maxTurns: 1 });
+
+      // Mock LLM to return non-completion text so the loop exhausts maxTurns
+      jest.spyOn((agent as any).anthropic.messages, 'create').mockResolvedValue({
+        content: [
+          { type: 'text', text: 'Still working on Phase 1...' }
+        ],
+        stop_reason: 'end_turn'
+      });
 
       await expect(agent.run()).rejects.toThrow('Agent did not complete within 1 turns');
     });
