@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { McpBridge, type McpServerConfig } from './mcp-bridge';
 import { parseCodeBlocks, writeCodeBlocks } from './file-writer';
+import { MultiAgentPipeline, type PipelineContext } from './multi-agent-pipeline';
 
 export interface DesignForgeConfig {
   figmaUrl: string;
@@ -12,6 +13,7 @@ export interface DesignForgeConfig {
   baseURL?: string;
   model?: string;
   mcpServers?: McpServerConfig[];
+  useMultiAgentPipeline?: boolean;  // Enable 4-stage pipeline (Planner → Coder → Reviewer → Fixer)
 }
 
 export interface AgentProgress {
@@ -155,6 +157,12 @@ export class DesignForgeAgent {
       // This makes the agent work with any model (local or cloud)
       // by eliminating the need for multi-turn tool orchestration.
       this.prefetched = await this.prefetchData();
+
+      // Use multi-agent pipeline if enabled
+      if (this.config.useMultiAgentPipeline) {
+        return await this.executeMultiAgentPipeline();
+      }
+
       return await this.executeLoop(onProgress);
     } finally {
       // Always disconnect, even if the loop throws
@@ -163,6 +171,53 @@ export class DesignForgeAgent {
         this.mcpBridge = null;
       }
     }
+  }
+
+  /**
+   * Execute the multi-agent pipeline (Planner → Coder → Reviewer → Fixer).
+   * This is an alternative to the single-turn LLM loop that provides better
+   * code quality through specialized agents with different temperatures.
+   */
+  private async executeMultiAgentPipeline(): Promise<any> {
+    this.log('\n🔧 Using Multi-Agent Pipeline (Planner → Coder → Reviewer → Fixer)');
+
+    if (!this.prefetched) {
+      throw new Error('Pre-fetched data is required for multi-agent pipeline');
+    }
+
+    // Create the pipeline
+    const pipeline = new MultiAgentPipeline({
+      anthropicApiKey: this.config.anthropicApiKey,
+      baseURL: this.config.baseURL,
+      model: this.config.model || 'qwen3-coder:30b',
+      verbose: this.config.verbose,
+    });
+
+    // Prepare context for the pipeline
+    const context: PipelineContext = {
+      figmaData: this.prefetched.figmaData || 'No Figma data available',
+      naosComponents: this.prefetched.naosComponents || 'No Naos component docs available',
+      naosTokens: this.prefetched.naosTokens || 'No Naos design tokens available',
+      userRequest: `Convert the Figma design to React/TypeScript components using @dtsl/react (Naos design system).
+Target directory: ${this.config.outputPath}
+Minimum test coverage: ${this.config.minCoverage || 80}%`,
+    };
+
+    // Run the pipeline
+    const generatedCode = await pipeline.run(context);
+
+    // Parse and write the code blocks
+    this.log('\n📝 Parsing and writing generated files...');
+    const codeBlocks = parseCodeBlocks(generatedCode);
+    this.log(`  Found ${codeBlocks.length} code blocks`);
+
+    const writtenFiles = await writeCodeBlocks(codeBlocks, this.config.outputPath);
+    this.log(`  ✅ Wrote ${writtenFiles.length} files to ${this.config.outputPath}`);
+
+    return {
+      filesWritten: writtenFiles.length,
+      files: writtenFiles,
+    };
   }
 
   // Maximum characters per tool result. Responses beyond this are truncated
