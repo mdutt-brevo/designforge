@@ -8,7 +8,7 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 // Each entry describes one MCP server the agent should connect to.
 // The bridge supports two transport modes:
 //   - stdio: spawns a local process (e.g. `npx figma-developer-mcp --stdio`)
-//   - http:  connects to a remote HTTP endpoint (e.g. `https://naos-mcp.51b.dev/mcp`)
+//   - http:  connects to a remote HTTP endpoint (e.g. `https://naos-mcp.brevo.tech/mcp`)
 
 export interface McpStdioServer {
   name: string;

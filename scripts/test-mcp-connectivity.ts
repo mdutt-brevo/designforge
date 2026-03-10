@@ -17,7 +17,7 @@ async function main() {
   servers.push({
     name: 'naos',
     transport: 'http',
-    url: process.env.NAOS_MCP_URL || 'https://naos-mcp.51b.dev/mcp',
+    url: process.env.NAOS_MCP_URL || 'https://naos-mcp.brevo.tech/mcp',
   });
 
   // Figma — only if key is set

@@ -117,7 +117,7 @@ program
     console.log(`  ANTHROPIC_BASE_URL:  ${process.env.ANTHROPIC_BASE_URL || '❌ Not set (will use default)'}`);
     console.log(`  CLAUDE_MODEL:        ${process.env.CLAUDE_MODEL || '❌ Not set (will use default)'}`);
     console.log(`  FIGMA_MCP_KEY:       ${process.env.FIGMA_MCP_KEY ? '✅ Set (' + process.env.FIGMA_MCP_KEY.slice(0, 8) + '...)' : '❌ Not set'}`);
-    console.log(`  NAOS_MCP_URL:        ${process.env.NAOS_MCP_URL || 'https://naos-mcp.51b.dev/mcp (default)'}`);
+    console.log(`  NAOS_MCP_URL:        ${process.env.NAOS_MCP_URL || 'https://naos-mcp.brevo.tech/mcp (default)'}`);
     console.log(`  PROJECT_ROOT:        ${process.env.PROJECT_ROOT || '❌ Not set'}`);
 
     // Check MCP connectivity if requested
@@ -197,7 +197,7 @@ async function startWorkflow(options: any): Promise<void> {
     console.log(chalk.yellow('  ⚠ FIGMA_MCP_KEY not set — Figma MCP will use mock data'));
   }
 
-  const naosUrl = process.env.NAOS_MCP_URL || 'https://naos-mcp.51b.dev/mcp';
+  const naosUrl = process.env.NAOS_MCP_URL || 'https://naos-mcp.brevo.tech/mcp';
   mcpServers.push({
     name: 'naos',
     transport: 'http',

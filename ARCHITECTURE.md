@@ -210,7 +210,7 @@ via stdin/stdout. This is how most MCP servers designed for local use
 work.
 
 **HTTP** -- For the Naos MCP server. The bridge connects to
-`https://naos-mcp.51b.dev/mcp` over the network using the MCP SDK's
+`https://naos-mcp.brevo.tech/mcp` over the network using the MCP SDK's
 `StreamableHTTPClientTransport`.
 
 ### The Type System

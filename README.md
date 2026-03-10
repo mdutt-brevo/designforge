@@ -91,7 +91,7 @@ Leave `ANTHROPIC_BASE_URL` unset — it defaults to `api.anthropic.com`.
 | `ANTHROPIC_BASE_URL` | No | `https://api.anthropic.com` | Override to point at LM Studio (`http://127.0.0.1:1234`). |
 | `FIGMA_MCP_KEY` | Yes | — | Figma personal access token (`figd_...`). Required for fetching designs. |
 | `CLAUDE_MODEL` | No | `qwen/qwen3-coder-30b` | Model identifier. Must match what's loaded in LM Studio. |
-| `NAOS_MCP_URL` | No | `https://naos-mcp.51b.dev/mcp` | Naos design system MCP endpoint. |
+| `NAOS_MCP_URL` | No | `https://naos-mcp.brevo.tech/mcp` | Naos design system MCP endpoint. |
 
 ---
 
@@ -315,7 +315,7 @@ designforge/
    low (5-10) during development to avoid burning through tokens or waiting on
    a looping model.
 
-6. **The Naos MCP server is public.** It runs at `https://naos-mcp.51b.dev/mcp`
+6. **The Naos MCP server is public.** It runs at `https://naos-mcp.brevo.tech/mcp`
    and requires no authentication. The Figma MCP server is spawned locally as a
    child process using your personal access token.
 
